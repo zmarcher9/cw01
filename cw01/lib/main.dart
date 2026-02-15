@@ -1,62 +1,97 @@
 import 'package:flutter/material.dart';
 
-void main() => runApp(const MyApp());
-
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
-  @override
-  State<MyApp> createState() => _MyAppState();
+void main() {
+  runApp(const CounterImageToggleApp());
 }
 
-class _MyAppState extends State<MyApp> {
-  ThemeMode _themeMode = ThemeMode.light;
+// 1. We change the Root Widget to be Stateful.
+// This allows it to hold the Theme State for the ENTIRE app.
+class CounterImageToggleApp extends StatefulWidget {
+  const CounterImageToggleApp({super.key});
+
+  @override
+  State<CounterImageToggleApp> createState() => _CounterImageToggleAppState();
+}
+
+class _CounterImageToggleAppState extends State<CounterImageToggleApp> {
+  // This variable now controls the theme for the WHOLE app
+  bool _isDark = false;
+
+  void _toggleTheme() {
+    setState(() {
+      _isDark = !_isDark;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'CW1 Counter & Toggle',
-      themeMode: _themeMode,
-      theme: ThemeData.light(useMaterial3: true),
-      darkTheme: ThemeData.dark(useMaterial3: true),
-      home: HomePage(
-        isDark: _themeMode == ThemeMode.dark,
-        onToggleTheme: () => setState(() => _themeMode =
-            _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light),
-      ),
+      debugShowCheckedModeBanner: false,
+      // The theme logic happens here at the top
+      themeMode: _isDark ? ThemeMode.dark : ThemeMode.light,
+      theme: ThemeData.light(),
+      darkTheme: ThemeData.dark(),
+      // We pass the toggle function down to the HomePage
+      home: HomePage(isDark: _isDark, onThemeToggle: _toggleTheme),
     );
   }
 }
 
 class HomePage extends StatefulWidget {
   final bool isDark;
-  final VoidCallback onToggleTheme;
-  const HomePage({super.key, required this.isDark, required this.onToggleTheme});
+  final VoidCallback onThemeToggle;
+
+  const HomePage({
+    super.key,
+    required this.isDark,
+    required this.onThemeToggle,
+  });
+
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
-  // Task 1 state
+  // Task 1 State
   int _counter = 0;
   int _step = 1;
   int _goal = 20;
   final List<(int value, String label)> _history = [];
 
-  // Task 2 state
+  // Task 2 State
   bool _isFirstImage = true;
-  late final AnimationController _ctrl;
-  late final Animation<double> _fade;
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
-    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
-    _ctrl.value = 1.0; // start with image1 visible
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    _controller.value = 1.0; // Start visible
   }
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  // --- FIX: The Animation Logic ---
+  void _toggleImage() async {
+    // 1. Fade OUT the old image
+    await _controller.reverse();
+    
+    // 2. SWAP the image file while it is invisible
+    setState(() => _isFirstImage = !_isFirstImage);
+    
+    // 3. Fade IN the new image
+    _controller.forward();
+  }
 
   void _change(int delta) {
     setState(() {
@@ -68,54 +103,62 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   void _undo() {
     if (_history.length < 2) return;
-    setState(() { _history.removeAt(0); _counter = _history.first.$1; });
+    setState(() {
+      _history.removeAt(0);
+      _counter = _history.first.$1;
+    });
   }
 
   void _reset() => setState(() {
-    _counter = 0;
-    _history.insert(0, (0, 'reset'));
-    if (_history.length > 5) _history.removeLast();
-  });
-
-  void _toggleImage() {
-    _isFirstImage ? _ctrl.reverse() : _ctrl.forward();
-    setState(() => _isFirstImage = !_isFirstImage);
-  }
+        _counter = 0;
+        _history.clear();
+      });
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final progress = (_counter / _goal).clamp(0.0, 1.0);
 
+    // --- FIX: NO MaterialApp here. Just Scaffold. ---
     return Scaffold(
       appBar: AppBar(
         title: const Text('CW1 Counter & Toggle'),
         actions: [
+          // This button calls the function in the Root Widget
           IconButton(
+            onPressed: widget.onThemeToggle,
             icon: Icon(widget.isDark ? Icons.light_mode : Icons.dark_mode),
-            onPressed: widget.onToggleTheme,
+            tooltip: 'Toggle Theme',
           ),
         ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Counter display
-            Text('$_counter',
-                style: TextStyle(fontSize: 80, fontWeight: FontWeight.bold,
-                    color: progress >= 1.0 ? Colors.green : cs.primary)),
-            if (progress >= 1.0) const Text('🎉 Goal reached!'),
+            // Counter
+            Text(
+              '$_counter',
+              style: TextStyle(
+                fontSize: 80,
+                fontWeight: FontWeight.bold,
+                // Use theme colors so it updates automatically
+                color: progress >= 1.0 ? Colors.green : Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            if (progress >= 1.0) const Text('🎉 Goal reached!', style: TextStyle(fontWeight: FontWeight.bold)),
 
-            // Progress bar and goal slider
-            const SizedBox(height: 8),
+            // Goal & Progress
+            const SizedBox(height: 16),
             LinearProgressIndicator(value: progress, minHeight: 8),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Goal:'),
+            const SizedBox(height: 8),
+            Row(children: [
+              const Text('Goal: '),
               Expanded(
                 child: Slider(
-                  value: _goal.toDouble(), min: 5, max: 100, divisions: 19,
+                  value: _goal.toDouble(),
+                  min: 5,
+                  max: 100,
+                  divisions: 19,
                   label: '$_goal',
                   onChanged: (v) => setState(() => _goal = v.round()),
                 ),
@@ -123,23 +166,29 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               Text('$_goal'),
             ]),
 
-            // Step selector
-            const SizedBox(height: 8),
+            // Step Selector
+            const SizedBox(height: 16),
             SegmentedButton<int>(
-              segments: [1, 5, 10].map((s) => ButtonSegment(value: s, label: Text('+$s'))).toList(),
+              segments: [1, 5, 10]
+                  .map((s) => ButtonSegment(value: s, label: Text('+$s')))
+                  .toList(),
               selected: {_step},
               onSelectionChanged: (s) => setState(() => _step = s.first),
             ),
 
-            // Counter buttons
-            const SizedBox(height: 16),
+            // Controls
+            const SizedBox(height: 24),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               ElevatedButton(
                 onPressed: _counter <= 0 ? null : () => _change(-_step),
                 child: Text('−$_step'),
               ),
               const SizedBox(width: 12),
-              FilledButton(
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                   backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                   foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+                ),
                 onPressed: () => _change(_step),
                 child: Text('+$_step'),
               ),
@@ -150,36 +199,40 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               ),
             ]),
 
-            // History and undo
-            const SizedBox(height: 12),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Wrap(
-                spacing: 6,
-                children: _history.map((e) =>
-                  Chip(label: Text('${e.$2}→${e.$1}'), visualDensity: VisualDensity.compact)
-                ).toList(),
-              ),
-              TextButton.icon(
+            // History
+            const SizedBox(height: 20),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
                 onPressed: _history.length >= 2 ? _undo : null,
                 icon: const Icon(Icons.undo, size: 16),
                 label: const Text('Undo'),
               ),
-            ]),
+            ),
 
-            // Image toggle with fade animation
+            // Image Toggle
             const Divider(height: 40),
-            Stack(alignment: Alignment.center, children: [
-              Image.asset('assets/images/image2.jpg', width: 180, height: 180, fit: BoxFit.cover),
-              FadeTransition(
-                opacity: _fade,
-                child: Image.asset('assets/images/image1.png', width: 180, height: 180, fit: BoxFit.cover),
+            FadeTransition(
+              opacity: _animation,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(
+                  _isFirstImage ? 'assets/images/image1.png' : 'assets/images/image2.jpg',
+                  width: 180,
+                  height: 180,
+                  fit: BoxFit.cover,
+                  errorBuilder: (c, e, s) => Container(
+                    width: 180, height: 180, color: Colors.grey.shade300, 
+                    child: const Icon(Icons.broken_image)
+                  ),
+                ),
               ),
-            ]),
+            ),
             const SizedBox(height: 12),
             ElevatedButton.icon(
               onPressed: _toggleImage,
               icon: const Icon(Icons.swap_horiz),
-              label: Text(_isFirstImage ? 'Switch to Night' : 'Switch to Day'),
+              label: const Text('Toggle Image'),
             ),
           ],
         ),
