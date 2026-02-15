@@ -169,10 +169,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             // Image toggle with fade animation
             const Divider(height: 40),
             Stack(alignment: Alignment.center, children: [
-              Image.asset('assets/image2.png', width: 180, height: 180, fit: BoxFit.cover),
+              Image.asset('assets/images/image2.jpg', width: 180, height: 180, fit: BoxFit.cover),
               FadeTransition(
                 opacity: _fade,
-                child: Image.asset('assets/image1.png', width: 180, height: 180, fit: BoxFit.cover),
+                child: Image.asset('assets/images/image1.png', width: 180, height: 180, fit: BoxFit.cover),
               ),
             ]),
             const SizedBox(height: 12),
